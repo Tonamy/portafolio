@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 15px; background: #f8fafc; display: flex; flex-direction: column; height: 93vh; }
+        #chatbox { flex: 1; border: 1px solid #e2e8f0; background: white; overflow-y: auto; padding: 15px; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
+        #input-area { margin-top: 10px; display: flex; gap: 8px; }
+        #message { flex: 1; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; }
+        #message:focus { border-color: #3b82f6; }
+        #send-btn { padding: 12px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .msg { margin: 10px 0; padding: 10px 14px; border-radius: 8px; max-width: 75%; line-height: 1.4; font-size: 14px; }
+        .bot { background: #f1f5f9; color: #1e293b; align-self: flex-start; margin-right: auto; }
+        .user { background: #3b82f6; color: white; margin-left: auto; text-align: left; }
+    </style>
+</head>
+<body>
+    <div id="chatbox" style="display: flex; flex-direction: column;">
+        <div class="msg bot"><b>Asistente:</b> ¡Hola! Soy el asistente automatizado de Tonatiuh. ¿Con quién tengo el gusto?</div>
+    </div>
+    <div id="input-area">
+        <input type="text" id="message" placeholder="Escribe tu respuesta..." onkeypress="if(event.key === 'Enter') sendMessage()">
+        <button id="send-btn" onclick="sendMessage()">Enviar</button>
+    </div>
+    <script>
+        let step = 1;
+        let userData = {};
+        function sendMessage() {
+            const input = document.getElementById('message');
+            const text = input.value.trim();
+            if(!text) return;
+            appendMessage(text, 'user');
+            input.value = '';
+            fetch('/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ message: text, step: step, data: userData })
+            })
+            .then(res => res.json())
+            .then(resData => {
+                appendMessage(resData.reply, 'bot');
+                step = resData.next_step;
+                userData = resData.data;
+            }).catch(err => {
+                appendMessage("Error de conexión con el servidor.", 'bot');
+            });
+        }
+        function appendMessage(text, sender) {
+            const chatbox = document.getElementById('chatbox');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `msg ${sender}`;
+            msgDiv.innerHTML = text.replace(/\[(.*?)\]/g, '<a href="https://calendly.com" target="_blank" style="color:#3b82f6; font-weight:bold;">$1</a>');
+            chatbox.appendChild(msgDiv);
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
+    </script>
+</body>
+</html>
