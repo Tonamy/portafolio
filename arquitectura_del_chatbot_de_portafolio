@@ -1,0 +1,17 @@
+digraph "Arquitectura del Chatbot de Portafolio" {
+	graph [fontcolor="#2D3436" fontname="Sans-Serif" fontsize=15 label="Arquitectura del Chatbot de Portafolio" nodesep=0.60 pad=2.0 rankdir=LR ranksep=0.75 splines=ortho]
+	node [fixedsize=true fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13 height=1.4 imagescale=true labelloc=b shape=box style=rounded width=1.4]
+	edge [color="#7B8894"]
+	"2f259c13363f464ea6655a09e1f55836" [label=Usuario height=1.9 image="D:\Tonatiuh Garza Martinez\Desktop\portafolio\venv\Lib\site-packages\resources/onprem/client\user.png" shape=none]
+	"7c6fad223b5f421a81cd2fa7708a2322" [label="Navegador/Móvil" height=1.9 image="D:\Tonatiuh Garza Martinez\Desktop\portafolio\venv\Lib\site-packages\resources/generic/device\mobile.png" shape=none]
+	subgraph "cluster_Servidor Render (Flask)" {
+		graph [bgcolor="#E5F5FD" fontname="Sans-Serif" fontsize=12 label="Servidor Render (Flask)" labeljust=l pencolor="#AEB6BE" rankdir=LR shape=box style=rounded]
+		"743f2dda29b5497eb9c0aa10428f309b" [label="App Flask (Backend)" height=1.9 image="D:\Tonatiuh Garza Martinez\Desktop\portafolio\venv\Lib\site-packages\resources/programming/framework\flask.png" shape=none]
+		"5cddeee69a2049fba13e960f0a650f8c" [label="Chatbot Engine (Lógica)" height=1.9 image="D:\Tonatiuh Garza Martinez\Desktop\portafolio\venv\Lib\site-packages\resources/programming/framework\flask.png" shape=none]
+	}
+	"39f15b5ec3cc4f55b1df4bb116aecb5d" [label="API Telegram" height=1.9 image="D:\Tonatiuh Garza Martinez\Desktop\portafolio\venv\Lib\site-packages\resources/saas/chat\telegram.png" shape=none]
+	"2f259c13363f464ea6655a09e1f55836" -> "7c6fad223b5f421a81cd2fa7708a2322" [dir=forward fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13]
+	"7c6fad223b5f421a81cd2fa7708a2322" -> "743f2dda29b5497eb9c0aa10428f309b" [label="POST /chat" dir=forward fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13]
+	"743f2dda29b5497eb9c0aa10428f309b" -> "5cddeee69a2049fba13e960f0a650f8c" [label="Gestión de Estados" dir=forward fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13]
+	"5cddeee69a2049fba13e960f0a650f8c" -> "39f15b5ec3cc4f55b1df4bb116aecb5d" [label="Notificación" dir=forward fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13]
+}

@@ -1,57 +1,76 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, session
 from flask_cors import CORS
-from .chatbot_engine import enviar_notificacion_telegram 
+from app.bot_brain import obtener_respuesta_ia, extraer_datos
+from app.lead_logger import registrar_evento
+from app.telegram_service import enviar_notificacion
+import os, uuid, logging
+
+logging.basicConfig(level=logging.INFO)
+MAX_HISTORIAL = 20
+
+# Definimos el mensaje profesional una sola vez para usarlo en el código
+MSG_EMERGENCIA = "¡Hola! Actualmente estoy atendiendo procesos de forma personalizada y mi asistente virtual está en pausa técnica. Para dedicarle tiempo a tu proyecto, por favor escríbeme directamente por WhatsApp al **7292813321**. ¡Será un gusto conversar contigo!"
 
 def create_app():
     app = Flask(__name__)
-    CORS(app, resources={r"/*": {"origins": "*"}})
-    
-    user_sessions = {}
+    CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+    app.secret_key = os.environ.get("FLASK_SECRET_KEY")
 
-    @app.route('/chat', methods=['POST'])
+    @app.route("/chat", methods=["POST", "OPTIONS"])
     def chat():
-        data = request.json
-        if not data or 'message' not in data:
-            return jsonify({"error": "Mensaje no recibido"}), 400
+        if request.method == "OPTIONS": return jsonify({}), 200
+
+        body = request.get_json(silent=True) or {}
+        message = (body.get("message") or "").strip()
+        if not message: return jsonify({"reply": "¿Podrías escribir tu mensaje?"}), 200
+
+        if "datos" not in session:
+            session["datos"] = {"nombre": None, "telefono": None, "correo": None, "motivo": None}
+            session["historial"] = []
+            session["session_id"] = str(uuid.uuid4())
+            session["notificado"] = False
+            session["modo_emergencia"] = False
+
+        # 1. MODO EMERGENCIA: Si ya falló, siempre enviamos el mensaje profesional
+        if session.get("modo_emergencia"):
+            return jsonify({"reply": MSG_EMERGENCIA})
+
+        # 2. REGLAS DE BYPASS (Ahorro de API)
+        msg_low = message.lower()
+        if any(w in msg_low for w in ["hola", "buen dia", "buenas tardes", "hey"]):
+            return jsonify({"reply": "¡Hola! Soy el asistente virtual de Tonatiuh. ¿En qué proceso de automatización o IA estás trabajando?"})
+
+        # 3. PROCESAMIENTO (Protegido)
+        try:
+            # Extracción
+            nuevos_datos = extraer_datos(message, session["datos"])
+            for campo, valor in nuevos_datos.items():
+                if campo in session["datos"] and valor: session["datos"][campo] = valor
             
-        user_message = data.get('message', '').strip()
-        user_id = data.get('user_id', 'user_123') 
+            # Respuesta IA
+            prompt_presion = " [INSTRUCCIÓN: Ya tienes el motivo, solicita nombre y teléfono]." if session["datos"].get("motivo") else ""
+            respuesta = obtener_respuesta_ia(session["historial"], session["datos"], message + prompt_presion)
+            
+            # Historial y Notificación
+            session["historial"].append({"role": "user", "parts": [message]})
+            session["historial"].append({"role": "model", "parts": [respuesta]})
+            if len(session["historial"]) > MAX_HISTORIAL: session["historial"] = session["historial"][-MAX_HISTORIAL:]
 
-        if user_id not in user_sessions:
-            user_sessions[user_id] = {'step': 0}
-        
-        session = user_sessions[user_id]
-        step = session.get('step', 0)
+            if session["datos"]["telefono"] and session["datos"]["nombre"] and not session.get("notificado"):
+                if enviar_notificacion(session["datos"]):
+                    session["notificado"] = True
+                    registrar_evento(session["session_id"], session["datos"], status="completo")
 
-        # Flujo de conversación
-        if step == 0:
-            session['step'] = 1
-            reply = "¡Hola! Para empezar, ¿podrías decirme tu nombre?"
-        elif step == 1:
-            session['name'] = user_message
-            session['step'] = 2
-            reply = "Mucho gusto. ¿Me podrías compartir tu número de teléfono?"
-        elif step == 2:
-            session['phone'] = user_message
-            session['step'] = 3
-            reply = "Perfecto, ¿cuál es tu correo electrónico?"
-        elif step == 3:
-            session['email'] = user_message
-            session['step'] = 4
-            reply = "Gracias. Finalmente, ¿cuál es el motivo de tu interés?"
-        elif step == 4:
-            success = enviar_notificacion_telegram(session.get('name'), session.get('phone'), session.get('email'), user_message)
-            reply = f"¡Gracias, {session.get('name')}! Recibí tu mensaje." if success else "Error técnico al enviar."
-            session['step'] = 0 
-        else:
-            reply = "Error en el flujo."
-            session['step'] = 0
-        
-        return jsonify({"reply": reply, "step": session['step']})
+            session.modified = True
+            return jsonify({"reply": respuesta})
 
-    @app.route('/', methods=['GET'])
-    def index():
-        # Asegúrate de que el archivo 'chat.html' esté en la carpeta 'templates'
-        return render_template('chat.html')
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str:
+                session["modo_emergencia"] = True
+                session.modified = True
+                return jsonify({"reply": MSG_EMERGENCIA})
+            
+            return jsonify({"reply": "Disculpa, hubo un error técnico. ¿Podrías intentar de nuevo?"})
 
     return app
