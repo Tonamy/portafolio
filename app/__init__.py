@@ -1,13 +1,17 @@
 from flask import Flask
-from flask_cors import CORS # 1. Importa la librería
+from flask_cors import CORS
 
 def create_app():
     app = Flask(__name__)
-    
-    # 2. Habilita CORS para todas las rutas
-    # Esto le dice a tu navegador: "Confía en las peticiones que vienen desde cualquier sitio"
-    CORS(app) 
-    
-    # ... resto de tu código ...
-    
+    CORS(app)
+
+    @app.route('/')
+    def index():
+        return "El backend está funcionando correctamente."
+
+    @app.route('/chat', methods=['POST'])
+    def chat():
+        # Aquí tu lógica
+        return {"reply": "Hola, recibí tu mensaje"}
+
     return app
