@@ -18,9 +18,9 @@ def create_app():
     # NUEVA RUTA PARA SERVIR TU INDEX.HTML
     @app.route("/")
     def index():
-        # Esto busca el archivo en la carpeta superior a 'app'
-        # Ajusta '../' si tu estructura fuera distinta
-        return send_from_directory(os.path.join(app.root_path, '..'), 'index.html')
+        # Estamos en 'app/', subimos un nivel a la raíz ('..') 
+        # y entramos a 'web_portfolio/' para buscar el archivo
+        return send_from_directory(os.path.join(app.root_path, '../web_portfolio'), 'index.html')
 
     @app.route("/chat", methods=["POST", "OPTIONS"])
     def chat():
