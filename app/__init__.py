@@ -1,47 +1,57 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
+from .chatbot_engine import enviar_notificacion_telegram 
 
 def create_app():
     app = Flask(__name__)
-    CORS(app)
-
-    # Diccionario simple para guardar el estado de la conversación por usuario
-    # En producción usarías una base de datos o Redis
+    CORS(app, resources={r"/*": {"origins": "*"}})
+    
     user_sessions = {}
 
     @app.route('/chat', methods=['POST'])
     def chat():
         data = request.json
+        if not data or 'message' not in data:
+            return jsonify({"error": "Mensaje no recibido"}), 400
+            
         user_message = data.get('message', '').strip()
-        user_id = "user_123" # En un caso real, esto vendría del frontend
+        user_id = data.get('user_id', 'user_123') 
 
         if user_id not in user_sessions:
             user_sessions[user_id] = {'step': 0}
+        
+        session = user_sessions[user_id]
+        step = session.get('step', 0)
 
-        step = user_sessions[user_id]['step']
-
-        # Lógica de la prueba (paso a paso)
+        # Flujo de conversación
         if step == 0:
-            user_sessions[user_id]['step'] = 1
-            return jsonify({"reply": "¡Claro! Para empezar, ¿podrías decirme tu nombre?"})
-        
+            session['step'] = 1
+            reply = "¡Hola! Para empezar, ¿podrías decirme tu nombre?"
         elif step == 1:
-            user_sessions[user_id]['name'] = user_message
-            user_sessions[user_id]['step'] = 2
-            return jsonify({"reply": f"Mucho gusto, {user_message}. ¿Me podrías compartir tu número de teléfono?"})
-        
+            session['name'] = user_message
+            session['step'] = 2
+            reply = "Mucho gusto. ¿Me podrías compartir tu número de teléfono?"
         elif step == 2:
-            user_sessions[user_id]['phone'] = user_message
-            user_sessions[user_id]['step'] = 3
-            return jsonify({"reply": "Perfecto. Finalmente, ¿cuál es el motivo de tu interés por contactarme?"})
-        
+            session['phone'] = user_message
+            session['step'] = 3
+            reply = "Perfecto, ¿cuál es tu correo electrónico?"
         elif step == 3:
-            name = user_sessions[user_id].get('name')
-            phone = user_sessions[user_id].get('phone')
-            # Aquí podrías guardar esto en un archivo, enviarlo por correo o a un CRM
-            user_sessions[user_id]['step'] = 0 # Reiniciar
-            return jsonify({"reply": f"¡Gracias, {name}! He recibido tu mensaje sobre '{user_message}'. Te contactaré al {phone} pronto."})
+            session['email'] = user_message
+            session['step'] = 4
+            reply = "Gracias. Finalmente, ¿cuál es el motivo de tu interés?"
+        elif step == 4:
+            success = enviar_notificacion_telegram(session.get('name'), session.get('phone'), session.get('email'), user_message)
+            reply = f"¡Gracias, {session.get('name')}! Recibí tu mensaje." if success else "Error técnico al enviar."
+            session['step'] = 0 
+        else:
+            reply = "Error en el flujo."
+            session['step'] = 0
+        
+        return jsonify({"reply": reply, "step": session['step']})
 
-        return jsonify({"reply": "Hubo un error, intentemos de nuevo."})
+    @app.route('/', methods=['GET'])
+    def index():
+        # Asegúrate de que el archivo 'chat.html' esté en la carpeta 'templates'
+        return render_template('chat.html')
 
     return app
